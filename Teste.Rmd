@@ -1,0 +1,528 @@
+---
+title: "Análise do perfil dos alunos de Sistemas de Informação da USP (2005 - 2017)"
+author: "Laís Carraro Leme Cavalheiro"
+date: "1 de julho de 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# PALETAS DE CORES
+
+# Azul: c("#9ADDE0", "#4BBBBB", "#0F9593", "#0D7A79")
+# Amarela: c("#FFC971", "#FFB627", "#FF9505", "#E2711D")
+# Roxa: c("#FBCFA1", "#EEB281", "#AE825E", "#443F3B")
+# Verde: c("#E3FF7F", "#B1D363", "#86A33E", "#62772E")
+# Marrom (GRACE): c("#A69CAC", "#474973", "#161B33", "#0D0C1D")
+# Vermelha (GRACE): c("#FEA295", "#FE6E59", "#C74530", "#7F2C1F")
+
+corHomem = c("#E3FF7F", "#B1D363", "#86A33E", "#62772E")
+corMulher = c("#FEA295", "#FE6E59", "#C74530", "#7F2C1F")
+```
+
+##I. Visão geral do conjunto de dados
+
+A planilha contém 2338 linhas, e cada uma representa um aluno, que aparece uma única vez. Cada observação é composta de 7 variáveis:
+
+1. Período do ingresso
+2. Turno
+3. Turma
+4. Id. GRACE
+5. Situação
+6. Tipo de ingresso
+7. Sexo
+
+Abaixo, a visualização das primeiras 5 linhas da tabela:
+
+```{r, echo=FALSE}
+dados = read.csv(file = "/Users/administrador/Desktop/Dados Alunos SI/DadosAlunosSI.csv", header = T, sep = ",")
+names(dados) = c("", "Período do ingresso", "Turno", "Turma", "Id. GRACE", "Situação", "Tipo de ingresso", "Sexo")
+library(knitr)
+kable(dados[1:5, ])
+```
+
+### Variáveis  
+
+#### 1. Período do ingresso
+**Tipo:** categórica  
+**Classes:** 2005/1, 2006/1, (...), 2017/1
+
+Registro do período em que o aluno ingressou no curso de Sistemas de Informação. Caso tenha acontecido reingresso, foi mantido apenas o último registro. Como o ingresso só ocorre durante o primeiro semestre do ano, pode-se entender essa variável, também, como o ano de ingresso do aluno no curso de Sistemas de Informação.
+
+```{r}
+library(knitr)
+kable(table(dados$`Período do ingresso`))
+```
+
+  
+#### 2. Turno
+**Tipo:** categórica  
+**Classes:** Diurno, Noturno  
+
+O turno ao qual o aluno pertencia no momento em que foi feito seu último registro no sistema da USP. Não é uma variável confiável para analisar o turno de ingresso do aluno, pois o histórico de transferência interna não é levado em consideração.  
+
+```{r}
+library(knitr)
+kable(table(dados$Turno))
+```
+
+  
+#### 3. Turma
+**Tipo:** numérica (discreta)  
+**Período:** apenas 102 ou 104  
+
+A turma está relacionada com o turno em que o aluno pertencia quando foi feito seu último registro no sistema e, por isso, também não é uma variável confiável para a análise do turno de ingresso. A turma 102 está relacionada ao período diurno e, a turma 104, ao período noturno.  
+
+```{r}
+library(knitr)
+kable(table(dados$Turma))
+```
+  
+#### 4. Id. GRACE
+**Tipo:** numérica (discreta)  
+**Período:** de 1 a 2338, de 1 em 1  
+
+A variável em questão serve como um índice para a identificação individual de cada aluno.  
+  
+#### 5. Situação
+**Tipo:** categórica  
+**Classes:** 18 classes demonstradas a seguir  
+
+Cada aluno, no sistema da USP, pode ter inúmeros registros de "Situação". Neste conjunto de dados, no entanto, foi mantido apenas o último registro referente ao aluno no sistema da USP. A variável pode apresentar os seguintes valores:
+
+```{r, echo=FALSE}
+library(knitr)
+Situação = dados$Situação
+kable(table(Situação))
+```
+  
+Pode-se notar que a grande quantidade de classes para esta variável se dá, principalmente, pelo alto nível de detalhamento sobre a presente situação do aluno. Para fins práticos, nesta primeira análise, a variável Situação foi simplificada da seguinte maneira:
+
+```{r, echo = FALSE}
+Ativos = dados[dados$Situação == "Ativo" | dados$Situação == "Reativado", ]
+Formados = dados[dados$Situação == "Término", ]
+OutrosS = dados[dados$Situação == "Trancado" | dados$Situação == "Transferência USP", ]
+Desligados = dados[dados$Situação != "Ativo" & dados$Situação != "Término" & dados$Situação != "Reativado" & dados$Situação != "Trancado" & dados$Situação != "Transferência USP", ]
+
+Ativos$Situação = "Ativo"
+OutrosS$Situação = "Outros"
+Desligados$Situação = "Desligado"
+
+SituaçãoNova = rbind(Ativos, Formados, Desligados, OutrosS)$Situação
+
+library(knitr)
+kable(table(SituaçãoNova))
+
+dadosNovos = cbind(subset(dados, select = -Situação), SituaçãoNova)
+```
+
+Resumindo, temos as seguintes classes:  
+
+- **Ativo:** O aluno estava cursando Sistemas de Informação quando foi inserido seu último registro no sistema (estava marcado como "ativo" ou "reativado".
+- **Término:** O aluno se formou no curso de Sistemas de Informação.
+- **Desligado:** O aluno não pôde concluir o curso de Sistemas de Informação.
+- **Outros:** O aluno trancou o curso ou fez uma transferência dentro da USP.  
+  
+#### 6. Tipo de ingresso
+**Tipo:** categórica  
+**Classes:** 18 classes demonstradas a seguir  
+
+O tipo do ingresso do aluno no curso de Sistemas de Informação. No caso de reingresso, foi mantido apenas o último registro de ingresso. A variável apresenta os seguintes valores:
+
+```{r, echo=FALSE}
+library(knitr)
+`Tipo de ingresso` = dados$`Tipo de ingresso`
+kable(table(`Tipo de ingresso`))
+```
+
+Da mesma forma que tratamos as classes de Situação, simplificaremos a variável de Tipo de ingresso por não precisarmos deste nível de detalhamento nesta análise inicial. A simplificação assume a seguinte forma:
+
+```{r, echo = FALSE}
+Fuvest = dadosNovos[dadosNovos$`Tipo de ingresso` == "Vestibular" | dadosNovos$`Tipo de ingresso` == "Vestibular 2 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 3 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 4 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 5 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 6 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 7 Lista" | dadosNovos$`Tipo de ingresso` == "Vestibular 8 Lista", ]
+
+SISU = dadosNovos[dadosNovos$`Tipo de ingresso` == "Vestibular - SISU" | dadosNovos$`Tipo de ingresso` == "Vestibular - SISU LE" | dadosNovos$`Tipo de ingresso` == "Vestibular SISU LE 1" | dadosNovos$`Tipo de ingresso` == "Vestibular SISU LE 2" | dadosNovos$`Tipo de ingresso` == "Vestibular SISU LE 3" | dadosNovos$`Tipo de ingresso` == "Vestibular SISU LE 4", ]
+
+OutrosT = dadosNovos[dadosNovos$`Tipo de ingresso` == "Graduado" | dadosNovos$`Tipo de ingresso` == "Outros" | dadosNovos$`Tipo de ingresso` == "Transf Externa" | dadosNovos$`Tipo de ingresso` == "Transf USP", ]
+
+Fuvest$`Tipo de ingresso` = "FUVEST"
+SISU$`Tipo de ingresso` = "SISU"
+OutrosT$`Tipo de ingresso` = "Outros"
+
+`Tipo de ingresso novo` = rbind(Fuvest, SISU, OutrosT)$`Tipo de ingresso`
+
+library(knitr)
+kable(table(`Tipo de ingresso novo`))
+
+dadosNovos = cbind(subset(dadosNovos, select = -`Tipo de ingresso`), `Tipo de ingresso novo`)
+```
+
+Resumindo, temos as seguintes classes:  
+
+- **FUVEST:** Aluno que ingressou no curso de Sistemas de Informação por meio do vestibular FUVEST.
+- **SISU:** Aluno que ingressou no curso de Sistemas de Informação por meio do SISU.
+- **Outros:** Engloba alunos graduados, alunos que recorreram à transferência interna de outro curso da USP, alunos provenientes de transferências externas à USP e outros.  
+  
+#### 7. Sexo
+**Tipo:** categórica  
+**Classes:** Feminino, Masculino, ?  
+
+O sexo biológico do referido estudante, também referido como "gênero".  
+
+```{r}
+library(knitr)
+kable(table(dados$Sexo))
+```
+ 
+É interessante notar, para este estudo, a proporção de homens e mulheres no conjunto de dados:
+
+```{r, echo = FALSE}
+m = (sum(as.numeric(dados$Sexo == "Feminino"))/2333)*100
+h = (sum(as.numeric(dados$Sexo == "Masculino"))/2333)*100
+
+pie(c(m, h), labels = paste(paste(c("Mulheres", "Homens"), " (", sep = ""), round(c(m, h)), "%)", sep = ""), col = c(corMulher[2], corHomem[2]), density = 150, clockwise = T, main = "Proporção de homens e mulheres no conjunto de dados")
+```
+  
+OBS.: Como este estudo tem como maior interesse a análise das outras variáveis em relação à variável "Sexo", os alunos cujo sexo foi marcado como "?" foram desconsiderados.  
+  
+##II. Gráficos  
+
+### 1. Perfil dos alunos, em relação ao gênero  
+
+Como uma análise inicial, decidiu-se delinear o perfil dos alunos em relação à variável "Sexo", levando em consideração todo o período de 2005 a 2017.  
+
+#### 1.1. Perfil da Situação dos alunos  
+
+Primeiramente, para analisar as "partições" de cada classe da "Situação" em relação ao todo, foram construídos gráficos de setores da situação no curso para cada gênero.  
+
+```{r, echo=FALSE}
+mulheresAtivas = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$SituaçãoNova == "Ativo"))
+mulheresFormadas = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$SituaçãoNova == "Término"))
+mulheresDesligadas = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$SituaçãoNova == "Desligado"))
+mulheresOutros = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$SituaçãoNova == "Outros"))
+
+sitMulheres = c(mulheresAtivas, mulheresFormadas, mulheresDesligadas, mulheresOutros)
+porcentSitMulheres = sitMulheres/sum(sitMulheres)
+
+pie(sitMulheres, labels = paste(paste(c("Ativas", "Formadas", "Desligadas", "Outro"), " (", sep = "", round(porcentSitMulheres*100)), "%)", sep = ""), col = corMulher, density = 150, clockwise = T, main = "Situação das mulheres no curso (2005 - 2017)")
+```
+
+```{r, echo=FALSE}
+homensAtivos = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$SituaçãoNova == "Ativo"))
+homensFormados = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$SituaçãoNova == "Término"))
+homensDesligados = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$SituaçãoNova == "Desligado"))
+homensOutros = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$SituaçãoNova == "Outros"))
+
+sitHomens = c(homensAtivos, homensFormados, homensDesligados, homensOutros)
+porcentSitHomens = sitHomens/sum(sitHomens)
+
+pie(sitHomens, labels = paste(paste(c("Ativos", "Formados", "Desligados", "Outro"), " (", sep = "", round(porcentSitHomens*100)), "%)", sep = ""), col = corHomem, density = 150, clockwise = T, main = "Situação dos homens no curso (2005 - 2017)")
+```
+  
+Olhando para o perfil da situação das mulheres no curso, é possível perceber que a classe com maior relevância (37%) é a de mulheres ativas. Ao olhar para o perfil dos homens no curso, por sua vez, pode-se chegar à conclusão de que a maior fração (36%) é de homens já formados. O que chama atenção, também, é que 1/4 das mulheres que ingressaram no curso de Sistemas de Informação durante esse período foram desligadas. Analisaremos, agora, os dois conjuntos de dados num mesmo gráfico de barras:  
+
+```{r, echo = FALSE}
+barplot(rbind(sitMulheres, sitHomens), main = "Situação dos alunos no curso, por gênero (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Situação", names.arg = c("Ativos", "Formados", "Desligados", "Outro"), ylim = c(0, 700), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Pelo gráfico acima, fica clara a diferença exorbitante entre o número absoluto de mulheres e homens no curso, em todas as categorias da variável "Situação". A abordagem de números absolutos, no entanto, não nos dá uma boa visão das proporções em relação aos gêneros. A seguir, é feita uma abordagem utilizando porcentagens, as quais são calculadas da seguinte maneira: a porcentagem de mulheres é calculada em relação ao número total de mulheres no curso durante o período de tempo especificado, e a porcentagem de homens, em relação ao número total de homens, durante o mesmo período.   
+
+```{r, echo = FALSE}
+
+barplot(rbind(porcentSitMulheres, porcentSitHomens), main = "Situação dos alunos no curso, por gênero (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos (por gênero)", xlab = "Situação", names.arg = c("Ativos", "Formados", "Desligados", "Outro"), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Ao observar o gráfico acima, é interessante notar que a porcentagem de mulheres ativas excede a de homens ativosem 5%. A porcentagem de alunos desligados, por sua vez, é maior em relação aos homens do que em relação às mulheres (excede em 4%).  
+
+#### 1.2. Perfil do Tipo de ingresso dos alunos  
+
+Da mesma forma que a variável Situação foi analisada, começamos observando gráficos de setores para mulheres e para homens:  
+
+```{r, echo=FALSE}
+mulheresFUVEST = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "FUVEST"))
+mulheresSISU = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "SISU"))
+mulheresOutros = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "Outros"))
+
+ingMulheres = c(mulheresFUVEST, mulheresSISU, mulheresOutros)
+porcentIngMulheres = ingMulheres/sum(ingMulheres)
+
+pie(ingMulheres, labels = paste(paste(c("Fuvest", paste("\n", "SISU"), paste(" ", "Outro")), " (", sep = "", round(porcentIngMulheres*100)), "%)", sep = ""), col = corMulher[2:4], density = 150, clockwise = T, main = "Tipo de ingresso das mulheres no curso (2005 - 2017)")
+```
+
+```{r, echo=FALSE}
+homensFUVEST = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "FUVEST"))
+homensSISU = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "SISU"))
+homensOutros = sum(as.numeric(dadosNovos[dadosNovos$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "Outros"))
+
+ingHomens = c(homensFUVEST, homensSISU, homensOutros)
+porcentIngHomens = ingHomens/sum(ingHomens)
+
+pie(ingHomens, labels = paste(paste(c("Fuvest", paste("\n", "SISU"), paste(" ", "Outro")), " (", sep = "", round(porcentIngHomens*100)), "%)", sep = ""), col = corHomem[2:4], density = 150, clockwise = T, main = "Tipo de ingresso dos homens no curso (2005 - 2017)")
+```
+  
+As proporções desta variável são muito similares nos dois gráficos. Não há diferenças notáveis para elas entre homens e mulheres. O que chama atenção nessas duas figuras é a proporção extremamente reduzida de ingressantes pelo SISU em contraste com ingressantes pela Fuvest, em ambos os sexos. Isso se dá, no entanto, pelo período de tempo escolhido para analisar tal variável, já que a USP adotou o ingresso de alunos pelo vestibular SISU apenas em 2016. Faremos uma análise neste período mais adiante.  
+
+```{r, echo = FALSE}
+barplot(rbind(ingMulheres, ingHomens), main = "Tipo de ingresso dos alunos no curso, por gênero (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "Sisu", "Outro"), ylim = c(0, 2000), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Olhando o gráfico de barras acima, fica clara, novamente, a diferença gritante entre o número absoluto de homens e de mulheres em cada categoria. A análise poderá ser facilitada, outra vez, trabalhando com proporções.  
+
+```{r, echo = FALSE}
+barplot(rbind(porcentIngMulheres, porcentIngHomens), main = "Tipo de ingresso dos alunos no curso, por gênero (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos (por gênero)", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "Sisu", "Outro"), beside = T, legend.text = c("Mulheres", "Homens"), ylim = c(0, 1))
+```
+  
+Novamente, o gráfico mostra que não há diferenças significativas entre o tipo de ingresso dos alunos para homens e mulheres.  
+
+##### 1.2.1. Tipo de ingresso a partir de 2016  
+
+Como citado anteriormente, a USP passou a aceitar o ingresso de alunos pelo SISU a partir de 2016. Sabendo disso, analisaremos, agora, o ingresso de alunos nesse período de tempo ajustado.  
+
+```{r, echo=FALSE}
+dados2016 = dadosNovos[dadosNovos$`Período do ingresso` == "2016/1" | dadosNovos$`Período do ingresso` == "2017/1", ]
+
+mulheresFUVEST2 = sum(as.numeric(dados2016[dados2016$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "FUVEST"))
+mulheresSISU2 = sum(as.numeric(dados2016[dados2016$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "SISU"))
+mulheresOutros2 = sum(as.numeric(dados2016[dados2016$Sexo == "Feminino", ]$`Tipo de ingresso novo` == "Outros"))
+
+ingMulheres2 = c(mulheresFUVEST2, mulheresSISU2, mulheresOutros2)
+porcentIngMulheres2 = ingMulheres2/sum(ingMulheres2)
+
+pie(ingMulheres2, labels = paste(paste(c("Fuvest", paste("\n", "SISU"), paste(" ", "Outro")), " (", sep = "", round(porcentIngMulheres2*100)), "%)", sep = ""), col = corMulher[2:4], density = 150, clockwise = T, main = "Tipo de ingresso das mulheres no curso (2016 - 2017)")
+
+```
+
+```{r, echo=FALSE}
+homensFUVEST2 = sum(as.numeric(dados2016[dados2016$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "FUVEST"))
+homensSISU2 = sum(as.numeric(dados2016[dados2016$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "SISU"))
+homensOutros2 = sum(as.numeric(dados2016[dados2016$Sexo == "Masculino", ]$`Tipo de ingresso novo` == "Outros"))
+
+ingHomens2 = c(homensFUVEST2, homensSISU2, homensOutros2)
+porcentIngHomens2 = ingHomens2/sum(ingHomens2)
+
+pie(ingHomens2, labels = paste(paste(c("Fuvest", paste("\n", "SISU"), paste(" ", "Outro")), " (", sep = "", round(porcentIngHomens2*100)), "%)", sep = ""), col = corHomem[2:4], density = 150, clockwise = T, main = "Tipo de ingresso dos homens no curso (2016 - 2017)")
+```
+  
+Os gráficos, agora com o período ajustado, continuam não mostrando grandes diferenças proporcionais entre o tipo de ingresso de homens e mulheres. O que chama atenção é apenas uma maior proporção de mulheres ingressando no curso por outros meios (transferência interna, externa e alunas já graduadas), com uma diferença de 6% a mais do que os hoomens, e 7% mais homens ingressando na USP por meio do SISU.  
+```{r, echo = FALSE}
+barplot(rbind(ingMulheres2, ingHomens2), main = "Tipo de ingresso dos alunos no curso, por gênero (2016 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "Sisu", "Outro"), ylim = c(0, 200), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+```{r, echo = FALSE}
+barplot(rbind(porcentIngMulheres2, porcentIngHomens2), main = "Tipo de ingresso dos alunos no curso, por gênero (2016 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos (por gênero)", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "Sisu", "Outro"), beside = T, legend.text = c("Mulheres", "Homens"), ylim = c(0, 0.6))
+```
+  
+Lado a lado, é possível perceber que a diferença entre a proporção de homens e mulheres ingressantes pela Fuvest no período indicado é pequena, e é maior nas duas outras categorias.  
+
+##### 1.2.2. Análise de ingressantes pela Fuvest  
+
+Trabalharemos, agora, só com aqueles alunos que ingressaram no curso através do vestibular Fuvest. Não utilizaremos, para esta sessão, a simplificação adotada para esta variável no início do estudo. Ao invés disso, usaremos as classes originais desta variável:  
+
+```{r, echo=FALSE}
+library(knitr)
+`Tipo de ingresso` = dados$`Tipo de ingresso`
+kable(table(`Tipo de ingresso`))
+```
+  
+Com essas considerações em mente, observaremos, primeiramente, gráficos de barras para homens e mulheres, em relação à lista do vestibular Fuvest em que o candidato foi selecionado para ingressar no curso de Sistemas de Informação.    
+
+```{r, echo=FALSE}
+mulheresL1F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular"))
+mulheresL2F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 2 Lista"))
+mulheresL3F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 3 Lista"))
+mulheresL4F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 4 Lista"))
+mulheresL5F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 5 Lista"))
+mulheresL6F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 6 Lista"))
+mulheresL7F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 7 Lista"))
+mulheresL8F = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular 8 Lista"))
+
+mulheresOutras = mulheresL5F + mulheresL6F + mulheresL7F + mulheresL8F
+
+FMulheres = c(mulheresL1F, mulheresL2F, mulheresL3F, mulheresL4F, mulheresOutras)
+porcentFMulheres = FMulheres/sum(FMulheres)
+
+pie(FMulheres, labels = paste(paste(c(seq(from=1, to=4, by=1), "Outras"), " (", sep = "", round(porcentFMulheres*100)), "%)", sep = ""), col = c(corMulher, corMulher[2]), density = 150, clockwise = T, main = "Lista da Fuvest em que mulheres ingressaram (2005 - 2017)")
+
+```
+
+```{r, echo=FALSE}
+homensL1F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular"))
+homensL2F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 2 Lista"))
+homensL3F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 3 Lista"))
+homensL4F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 4 Lista"))
+homensL5F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 5 Lista"))
+homensL6F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 6 Lista"))
+homensL7F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 7 Lista"))
+homensL8F = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular 8 Lista"))
+
+homensOutras = homensL5F + homensL6F + homensL7F + homensL8F
+
+FHomens = c(homensL1F, homensL2F, homensL3F, homensL4F, homensOutras)
+porcentFHomens = FHomens/sum(FHomens)
+
+pie(FHomens, labels = paste(paste(c(seq(from=1, to=4, by=1), "Outras"), " (", sep = "", round(porcentFHomens*100)), "%)", sep = ""), col = c(corHomem, corHomem[2]), density = 150, clockwise = T, main = "Lista da Fuvest em que homens ingressaram (2005 - 2017)")
+
+```
+  
+Em ambos os gráficos, a maioria dos alunos foi selecionado pela primeira lista da Fuvest, e esta porcentagem diminui nas listas subsequentes. Como a maioria das vagas é preenchida na primeira chamada e há uma crescente diminuição natural ao longo das listas, o comportamento dessa variável neste período de tempo pode ser considerado plausível. Novamente, não há diferenças notáveis para homens e mulheres em relação a essa variável.  
+
+```{r, echo=FALSE}
+FMulheres = c(mulheresL1F, mulheresL2F, mulheresL3F, mulheresL4F, mulheresL5F, mulheresL6F, mulheresL7F, mulheresL8F)
+porcentFMulheres = FMulheres/sum(FMulheres)
+
+FHomens = c(homensL1F, homensL2F, homensL3F, homensL4F, homensL5F, homensL6F, homensL7F, homensL8F)
+porcentFHomens = FHomens/sum(FHomens)
+
+barplot(rbind(FMulheres, FHomens), main = "Lista da Fuvest em que alunos ingressaram (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Lista de ingresso", names.arg = seq(from=1, to=8, by=1), ylim = c(0, 1200), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Pelo gráfico de barras acima, vemos, novamente, a grande diferença entre homens e mulheres em número absoluto. Observando, agora, em porcentagens:  
+
+```{r, echo=FALSE}
+barplot(rbind(porcentFMulheres, porcentFHomens), main = "Lista da Fuvest em que alunos ingressaram (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos (por gênero)", xlab = "Lista de ingresso", names.arg = seq(from=1, to=8, by=1), ylim = c(0, 0.7), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+É interessante observar que uma porcentagem maior de mulheres é chamada pela primeira lista da Fuvest, e uma porcentagem maior de homens na segunda e terceira listas. Nas outras classes, tal diferença é muito pequena para ser considerada relevante.  
+
+##### 1.2.3. Análise de ingressantes pelo SISU  
+
+Tomaremos como foco, agora, os alunos que ingressaram na USP por meio do vestibular SISU.  
+
+```{r, echo=FALSE}
+mulheresL1S = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular - SISU"))
+mulheresLES = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular - SISU LE"))
+mulheresLE1S = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular SISU LE 1"))
+mulheresLE2S = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular SISU LE 2"))
+mulheresLE3S = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular SISU LE 3"))
+mulheresLE4S = sum(as.numeric(dados[dados$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular SISU LE 4"))
+
+mulheresOutras = mulheresLE3S + mulheresLE4S
+
+SMulheres = c(mulheresL1S, mulheresLES, mulheresLE1S, mulheresLE2S, mulheresOutras)
+porcentSMulheres = SMulheres/sum(SMulheres)
+
+pie(SMulheres, labels = paste(paste(c(seq(from=1, to=4, by=1), "Outras"), " (", sep = "", round(porcentSMulheres*100)), "%)", sep = ""), col = c(corMulher, corMulher[2]), density = 150, clockwise = T, main = "Lista do SISU em que mulheres ingressaram (2016 - 2017)")
+
+```
+
+```{r, echo=FALSE}
+homensL1S = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular - SISU"))
+homensLES = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular - SISU LE"))
+homensLE1S = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular SISU LE 1"))
+homensLE2S = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular SISU LE 2"))
+homensLE3S = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular SISU LE 3"))
+homensLE4S = sum(as.numeric(dados[dados$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular SISU LE 4"))
+
+homensOutras = homensLE3S + homensLE4S
+
+SHomens = c(homensL1S, homensLES, homensLE1S, homensLE2S, homensOutras)
+porcentSHomens = SHomens/sum(SHomens)
+
+pie(SHomens, labels = paste(paste(c(seq(from=1, to=4, by=1), "Outras"), " (", sep = "", round(porcentSHomens*100)), "%)", sep = ""), col = c(corHomem, corHomem[2]), density = 150, clockwise = T, main = "Lista do SISU em que homens ingressaram (2016 - 2017)")
+
+```
+  
+Nos dois gráficos, por volta de metade dos alunos são chamados na primeira lista. Há uma diferença notável entre a porcentagem de mulheres chamadas na segunda lista (6%) e homens chamados na segunda lista (19%), com uma diferença de 13%. O mesmo ocorre na terceira (12% a mais nas mulheres do que nos homens) e quarta listas (7% a mais nas mulheres do que nos homens). Novamente, a crescente diminuição no número de ingressantes ao longo das listas pode ser tratada como o comportamento esperado dessa variável.   
+
+```{r, echo=FALSE}
+SMulheres = c(mulheresL1S, mulheresLES, mulheresLE1S, mulheresLE2S, mulheresLE3S, mulheresLE4S)
+porcentSMulheres = SMulheres/sum(SMulheres)
+
+SHomens = c(homensL1S, homensLES, homensLE1S, homensLE2S, homensLE3S, homensLE4S)
+porcentSHomens = SHomens/sum(SHomens)
+
+barplot(rbind(SMulheres, SHomens), main = "Lista do SISU em que alunos ingressaram (2016 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Lista de ingresso", names.arg = seq(from=1, to=6, by=1), ylim = c(0, 40), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+
+Mesmo não tão exorbitante quanto nas outras análises, a diferença entre homens e mulheres nessa categoria ainda é visualmente grande.  
+```{r, echo=FALSE}
+barplot(rbind(porcentSMulheres, porcentSHomens), main = "Lista do SISU em que alunos ingressaram (2016 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos", xlab = "Lista de ingresso", names.arg = seq(from=1, to=6, by=1), ylim = c(0, 0.5), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Outra vez é possível perceber a semelhança nas chamadas da primeira lista, e as diferenças nas três listas subsequentes. Vale notas, também, que uma maior porcentagem de homens é chamada na sexta lista do que a porcentagem de mulheres.    
+
+##### 1.2.4. Análise de ingressantes na primeira chamada da Fuvest e do SISU  
+
+Mudaremos, agora, nosso foco para a primeira lista da Fuvest unida à primeira lista do SISU. Outra vez, pelo fato de o ingresso de alunos pelo SISU ter começado em 2016, o período analisado foi encurtado para os dois últimos anos do conjunto de dados.    
+
+```{r, echo=FALSE}
+dados2016 = dados[dados$`Período do ingresso` == "2016/1" | dados$`Período do ingresso` == "2017/1", ]
+mulheresL1F = sum(as.numeric(dados2016[dados2016$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular"))
+mulheresL1S = sum(as.numeric(dados2016[dados2016$Sexo == "Feminino", ]$`Tipo de ingresso` == "Vestibular - SISU"))
+pie(c(mulheresL1F, mulheresL1S), labels = paste(paste(c("Fuvest", "SISU"), " (", sep = "", round((c(mulheresL1F, mulheresL1S)/sum(c(mulheresL1F, mulheresL1S)))*100)), "%)", sep = ""), col = corMulher[2:3], density = 150, clockwise = T, main = "Tipo de ingresso das mulheres da primeira lista (2016 - 2017)")
+```
+
+```{r, echo=FALSE}
+homensL1F = sum(as.numeric(dados2016[dados2016$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular"))
+homensL1S = sum(as.numeric(dados2016[dados2016$Sexo == "Masculino", ]$`Tipo de ingresso` == "Vestibular - SISU"))
+pie(c(homensL1F, homensL1S), labels = paste(paste(c("Fuvest", "SISU"), " (", sep = "", round((c(homensL1F, homensL1S)/sum(c(homensL1F, homensL1S)))*100)), "%)", sep = ""), col = corHomem[2:3], density = 150, clockwise = T, main = "Tipo de ingresso dos homens da primeira lista (2005 - 2017)")
+```
+  
+Enquanto as mulheres ingressantes econtram-se bem divididas entre as duas categorias, os homens concentram-se mais no vestibular Fuvest. No entanto, tal diferença, de apenas 6%, é pequena.  
+
+```{r, echo=FALSE}
+barplot(rbind(c(mulheresL1F, mulheresL1S), c(homensL1F, homensL1S)), main = "Tipo de ingresso dos alunos da primeira lista (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Número de alunos", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "SISU"), ylim = c(0, 60), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+
+```{r, echo=FALSE}
+barplot(rbind((c(mulheresL1F, mulheresL1S)/sum(c(mulheresL1F, mulheresL1S))), (c(homensL1F, homensL1S)/sum(c(homensL1F, homensL1S)))), main = "Tipo de ingresso dos alunos da primeira lista (2005 - 2017)", col = c(corMulher[2], corHomem[2]), density = 100, border = NA, ylab = "Porcentagem de alunos", xlab = "Tipo de ingresso", names.arg = c("Fuvest", "SISU"), ylim = c(0, 0.6), beside = T, legend.text = c("Mulheres", "Homens"))
+```
+  
+Olhando apenas as proporções, não há diferenças grandes no tipo de ingresso pela primeira lista entre homens e mulheres, apenas uma concentração maior dos homens no vestibular Fuvest, em relação às mulheres.    
+
+### 2. Juntando os perfis construídos  
+
+Agora, cruzaremos as análises feitas da Situação e do Tipo de ingresso dos alunos.  
+
+#### 2.1. Situação vs Tipo de ingresso  
+
+Essa sessão foca em cada classe da variável Situação e, a partir dela, observa os tipos de ingresso dos alunos em questão.  
+
+```{r, echo=FALSE}
+dadosMulheres = dados[dados$Sexo == "Feminino", ]
+
+slices = c(sum(as.numeric(dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular")), sum(as.numeric(dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 2 Lista")), sum(as.numeric(dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 3 Lista" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 4 Lista" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 5 Lista" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 6 Lista" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 7 Lista" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Vestibular 8 Lista")), sum(as.numeric(dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Transf USP" | dadosMulheres[dadosMulheres$Situação == "Término", ]$`Tipo de ingresso` == "Transf Externa"))) 
+
+pie(slices, labels = paste(paste(c("Fuvest Lista 1", "Fuvest Lista 2", "Fuvest outras listas", "Transferência USP/Externa"), " (", sep = "", round((slices/sum(slices))*100)), "%)", sep = ""), col = corMulher, density = 150, clockwise = T, main = "Tipo de ingresso das mulheres formadas (2005 - 2017)")
+```
+  
+Por esse gráfico, observamos que 94% das mulheres que se formaram durante o período de 2005 a 2017 ingressaram no curso de Sistemas de Informação pelo vestibular Fuvest, e apenas 6% pelo processo de transferência. Isso significa que nenhuma mulher que ingressou pelo SISU conseguiu se formar no curso. No caso de alunas ingressantes pelo SISU, tal observação pode ser explicada pelo fato de que, como o tempo mínimo estimado para a conclusão do curso é de 4 anos, o ano esperado para que os alunos ingressantes em 2016 se formem é 2019. Por isso, não é uma surpresa encontrar este tipo de informação.    
+
+#### 2.1. Tipo de ingresso vs Situação  
+
+```{r, echo=FALSE}
+dadosMulheres = dadosNovos[dadosNovos$Sexo == "Feminino", ]
+slices = c(sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "FUVEST", ]$Situação == "Ativo")), sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "FUVEST", ]$Situação == "Término")), sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "FUVEST", ]$Situação == "Desligado")), sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "FUVEST", ]$Situação == "Outros"))) 
+
+pie(slices, labels = paste(paste(c("Ativas", "Formadas", "Desligadas", "Outros"), " (", sep = "", round((slices/sum(slices))*100)), "%)", sep = ""), col = corMulher, density = 150, clockwise = T, main = "Situação das ingressantes pela Fuvest (2005 - 2017)")
+```
+  
+É preocupante o fato de que pouco mais de 1/4 das alunas ingressantes pela Fuvest tenham sido desligadas. No entanto, a segunda maior fração (36%) é de mulheres que conseguiram se formar (que, inclusive, é mais de 1/4 das alunas que ingressaram entre 2005 e 2017).  
+
+```{r, echo=FALSE}
+slices = c(sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "SISU", ]$Situação == "Desligado")), sum(as.numeric(dadosMulheres[dadosMulheres$`Tipo de ingresso` == "SISU", ]$Situação == "Outros"))) 
+
+pie(slices, labels = paste(paste(c("Ativas", "Outros"), " (", sep = "", round((slices/sum(slices))*100)), "%)", sep = ""), col = corMulher, density = 150, clockwise = T, main = "Situação das ingressantes pelo SISU (2016 - 2017)")
+```
+  
+Como o SISU passou a ser uma forma de ingresso aceita pela USP a partir de 2016, era de se esperar que as ingressantes por esse tipo de vestibular de 2016 ou 2017 estivessem ativas. No entanto, é preocupante perceber que quase metade delas se encaixam na situação "Outros", o que engloba trancamentos e transferências. Outra informação, omitida no gráfico, é a de que 0% das ingressantes pelo SISU foram desligadas.
+
+## III. Apêndice  
+
+Os dados aqui analisados não são tão confiáveis como os analisados acima, por questões de falta de histórico da variável "Situação" a ser analisada, já que temos apenas o último registro. No entanto, como uma estimativa, apresentamos, aqui, o uso da variável "Período".  
+
+```{r, echo=FALSE}
+dadosHomens = dadosNovos[dadosNovos$Sexo == "Masculino", ]
+plot(table(dadosHomens$`Período do ingresso`), type = "o", main = "Número de ingressantes por ano, por gênero (2005 - 2017)", col = corHomem[2], xlab = "Período", ylab = "Número de ingressantes")
+lines(table(dadosMulheres$`Período do ingresso`), type = "o", col = corMulher[2])
+legend(10, 95, legend=c("Mulheres", "Homens"), col= c(corMulher[2], corHomem[2]), lty=1:1, cex=0.8, box.lty=0, title = "Legenda:")
+```
+  
+Podemos observar que, ao longo dos 13 anos analisados, a diferença entre homens e mulheres ingressando no curso sempre esteve na faixa dos 130 alunos, e o ano em que essa diferença foi a menor foi 2008, com aproximadamente 100 homens a mais que mulheres. A série não apresenta nenhuma tendência forte aparente. O gráfico abaixo analisa quantos homens a mais que mulheres ingressaram no curso de Sistemas de Informação, ao longo dos anos.  
+
+```{r, echo=FALSE}
+plot((table(dadosHomens$`Período do ingresso`) - table(dadosMulheres$`Período do ingresso`)), type = "o", main = "Diferença entre o número de ingressantes por gênero\n (2005 - 2017)", col = corHomem[2], xlab = "Período", ylab = "Homens - Mulheres")
+```
+  
+Novamente, é possível observar, agora de forma mais clara, que entre 2007 e 2008 esta diferença caiu de mais de 120 alunos para por volta de 100, o que, mesmo assim, é uma diferença muito grande, levando em consideração que, todo ano, o curso abre uma turma de 180 vagas. Após 2008, no entanto, a diferença volta, outra vez, para a casa dos 125 alunos. Há, ainda, um leve crescimemto do período de 2010 até 2013. É possível perceber, resumindo, que a diferença entre homens e mulheres ingressantes a cada ano é muito grande, e não vem apresentando tendências de diminuir.  
